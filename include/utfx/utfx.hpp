@@ -109,6 +109,7 @@ struct utf_traits<CharT, 1> {
           return illegal;
         }
         c = ((c << 6) | (tmp & 0x3F));
+        [[fallthrough]];
       case 2:
         if (p == e) {
           return incomplete;
@@ -118,6 +119,7 @@ struct utf_traits<CharT, 1> {
           return illegal;
         }
         c = ((c << 6) | (tmp & 0x3F));
+        [[fallthrough]];
       case 1:
         if (p == e) {
           return incomplete;
@@ -156,8 +158,10 @@ struct utf_traits<CharT, 1> {
     switch (trail_len) {
       case 3:
         c = ((c << 6) | (0x3f & static_cast<unsigned char>(*p++)));
+        [[fallthrough]];
       case 2:
         c = ((c << 6) | (0x3f & static_cast<unsigned char>(*p++)));
+        [[fallthrough]];
       case 1:
         c = ((c << 6) | (0x3f & static_cast<unsigned char>(*p++)));
     }
