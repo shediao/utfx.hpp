@@ -33,6 +33,21 @@ constexpr inline bool is_valid_codepoint(codepoint v) {
   return true;
 }
 
+template <typename T>
+constexpr T swap_bytes(T x) {
+  if constexpr (sizeof(T) == 2) {
+    uint16_t v = static_cast<uint16_t>(x);
+    v = (v << 8) | (v >> 8);
+    return static_cast<T>(v);
+  }
+  if constexpr (sizeof(T) == 4) {
+    uint32_t v = static_cast<uint32_t>(x);
+    v = ((v & 0x000000FF) << 24) | ((v & 0x0000FF00) << 8) |
+        ((v & 0x00FF0000) >> 8) | ((v & 0xFF000000) >> 24);
+    return static_cast<T>(v);
+  }
+}
+
 template <typename CharT, size_t = sizeof(CharT)>
 struct utf_traits;
 
@@ -231,12 +246,16 @@ struct utf_traits<CharT, 2> {
   }
   static bool is_trail(char_type c) { return is_second_surrogate(c); }
   static bool is_lead(char_type c) { return !is_second_surrogate(c); }
-  template <typename It>
-  static codepoint decode(It& current, It last) {
+  template <typename Iterator>
+  static codepoint decode(Iterator& current, Iterator last,
+                          endian e = endian::native) {
     if (current == last) {
       return incomplete;
     }
     uint16_t w1 = *current++;
+    if (e != endian::native) {
+      w1 = swap_bytes(w1);
+    }
     if (w1 < 0xD800 || 0xDFFF < w1) {
       return w1;
     }
@@ -247,14 +266,20 @@ struct utf_traits<CharT, 2> {
       return incomplete;
     }
     uint16_t w2 = *current++;
+    if (e != endian::native) {
+      w2 = swap_bytes(w2);
+    }
     if (w2 < 0xDC00 || 0xDFFF < w2) {
       return illegal;
     }
     return combine_surrogate(w1, w2);
   }
-  template <typename It>
-  static codepoint decode_valid(It& current) {
+  template <typename Iterator>
+  static codepoint decode_valid(Iterator& current, endian e = endian::native) {
     uint16_t w1 = *current++;
+    if (e != endian::native) {
+      w1 = swap_bytes(w1);
+    }
     if (w1 < 0xD800 || 0xDFFF < w1) {
       return w1;
     }
@@ -262,14 +287,24 @@ struct utf_traits<CharT, 2> {
     return combine_surrogate(w1, w2);
   }
   static int width(codepoint u) { return u >= 0x10000 ? 2 : 1; }
-  template <typename It>
-  static It encode(codepoint u, It out) {
+  template <typename Iterator>
+  static Iterator encode(codepoint u, Iterator out, endian e = endian::native) {
     if (u <= 0xFFFF) {
-      *out++ = static_cast<char_type>(u);
+      uint16_t w = static_cast<uint16_t>(u);
+      if (e != endian::native) {
+        w = swap_bytes(w);
+      }
+      *out++ = static_cast<char_type>(w);
     } else {
       u -= 0x10000;
-      *out++ = static_cast<char_type>(0xD800 | (u >> 10));
-      *out++ = static_cast<char_type>(0xDC00 | (u & 0x3FF));
+      uint16_t w1 = 0xD800 | (u >> 10);
+      uint16_t w2 = 0xDC00 | (u & 0x3FF);
+      if (e != endian::native) {
+        w1 = swap_bytes(w1);
+        w2 = swap_bytes(w2);
+      }
+      *out++ = static_cast<char_type>(w1);
+      *out++ = static_cast<char_type>(w2);
     }
     return out;
   }
@@ -287,24 +322,35 @@ struct utf_traits<CharT, 4> {
   }
   static bool is_trail(char_type /*c*/) { return false; }
   static bool is_lead(char_type /*c*/) { return true; }
-  template <typename It>
-  static codepoint decode_valid(It& current) {
-    return *current++;
+  template <typename Iterator>
+  static codepoint decode_valid(Iterator& current, endian e = endian::native) {
+    codepoint c = *current++;
+    if (e != endian::native) {
+      c = swap_bytes(c);
+    }
+    return c;
   }
-  template <typename It>
-  static codepoint decode(It& current, It last) {
+  template <typename Iterator>
+  static codepoint decode(Iterator& current, Iterator last,
+                          endian e = endian::native) {
     if (current == last) {
       return incomplete;
     }
     codepoint c = *current++;
+    if (e != endian::native) {
+      c = swap_bytes(c);
+    }
     if (!is_valid_codepoint(c)) {
       return illegal;
     }
     return c;
   }
   static int width(codepoint /*u*/) { return 1; }
-  template <typename It>
-  static It encode(codepoint u, It out) {
+  template <typename Iterator>
+  static Iterator encode(codepoint u, Iterator out, endian e = endian::native) {
+    if (e != endian::native) {
+      u = swap_bytes(u);
+    }
     *out++ = static_cast<char_type>(u);
     return out;
   }
@@ -312,60 +358,106 @@ struct utf_traits<CharT, 4> {
 
 }  // namespace detail
 
-template <typename CharOut, typename CharIn>
-std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end) {
+template <
+    typename CharOut, typename CharIn,
+    typename = std::enable_if<(sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
+                                  (sizeof(CharIn) != sizeof(CharOut)),
+                              void>::type>
+std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
+                                      utfx::endian from_or_to) {
   std::basic_string<CharOut> result;
   result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
                  detail::utf_traits<CharIn>::max_width);
   std::back_insert_iterator<std::basic_string<CharOut>> inserter(result);
   while (begin != end) {
-    const detail::codepoint c = detail::utf_traits<CharIn>::decode(begin, end);
+    detail::codepoint c;
+    if constexpr (sizeof(CharIn) != 1) {
+      c = detail::utf_traits<CharIn>::decode(begin, end, from_or_to);
+    } else {
+      c = detail::utf_traits<CharIn>::decode(begin, end);
+    }
     if (c == detail::illegal || c == detail::incomplete) {
       // throw conversion_error();
     } else {
-      detail::utf_traits<CharOut>::encode(c, inserter);
+      if constexpr (sizeof(CharOut) != 1) {
+        detail::utf_traits<CharOut>::encode(c, inserter, from_or_to);
+      } else {
+        detail::utf_traits<CharOut>::encode(c, inserter);
+      }
     }
   }
   return result;
 }
 
-template <typename CharOut, typename CharIn>
-std::basic_string<CharOut> utf_to_utf(const std::basic_string<CharIn>& str) {
-  return utf_to_utf<CharOut, CharIn>(str.c_str(), str.c_str() + str.size());
-}
-
-template <typename CharOut, typename CharIn>
-std::basic_string<CharOut> utf_to_utf(const CharIn* str) {
-  std::basic_string_view<CharIn> input{str};
-  return utf_to_utf<CharOut, CharIn>(input.data(), input.data() + input.size());
+template <typename CharOut, typename CharIn,
+          typename = std::enable_if<
+              (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
+std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
+                                      utfx::endian from, utfx::endian to) {
+  std::basic_string<CharOut> result;
+  result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
+                 detail::utf_traits<CharIn>::max_width);
+  std::back_insert_iterator<std::basic_string<CharOut>> inserter(result);
+  while (begin != end) {
+    detail::codepoint c = detail::utf_traits<CharIn>::decode(begin, end, from);
+    if (c == detail::illegal || c == detail::incomplete) {
+      // throw conversion_error();
+    } else {
+      detail::utf_traits<CharOut>::encode(c, inserter, to);
+    }
+  }
+  return result;
 }
 
 #if defined(_WIN32)
 template <typename ToCharT = wchar_t>
-inline auto utf8_to_utf16(const char* str) {
-  return utf_to_utf<ToCharT>(str);
+inline auto utf8_to_utf16(const char* str,
+                          utfx::endian e = utfx::endian::native) {
+  std::basic_string_view<char> s{str};
+  return utf_to_utf<ToCharT>(s.data(), s.data() + s.size(), e);
 }
-inline auto utf16_to_utf8(const wchar_t* str) { return utf_to_utf<char>(str); }
-inline auto utf16_to_utf8(const char16_t* str) { return utf_to_utf<char>(str); }
+inline auto utf16_to_utf8(const wchar_t* str,
+                          utfx::endian e = utfx::endian::native) {
+  std::basic_string_view<wchar_t> s{str};
+  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+}
+inline auto utf16_to_utf8(const char16_t* str,
+                          utfx::endian e = utfx::endian::native) {
+  std::basic_string_view<char16_t> s{str};
+  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+}
 template <typename ToCharT = wchar_t>
-inline auto utf8_to_utf16(const std::string& str) {
-  return utf_to_utf<ToCharT>(str);
+inline auto utf8_to_utf16(const std::string& str,
+                          utfx::endian e = utfx::endian::native) {
+  return utf_to_utf<ToCharT>(str.data(), str.data() + str.size(), e);
 }
-inline auto utf16_to_utf8(const std::wstring& str) {
-  return utf_to_utf<char>(str);
+inline auto utf16_to_utf8(const std::wstring& str,
+                          utfx::endian e = utfx::endian::native) {
+  return utf_to_utf<char>(str.data(), str.data() + str.size(), e);
 }
-inline auto utf16_to_utf8(const std::u16string& str) {
-  return utf_to_utf<char>(str);
+inline auto utf16_to_utf8(const std::u16string& str,
+                          utfx::endian e = utfx::endian::native) {
+  return utf_to_utf<char>(str.data(), str.data() + str.size(), e);
 }
 #else
-inline auto utf8_to_utf16(const char* str) { return utf_to_utf<char16_t>(str); }
-inline auto utf16_to_utf8(const char16_t* str) { return utf_to_utf<char>(str); }
-
-inline auto utf8_to_utf16(const std::string& str) {
-  return utf_to_utf<char16_t>(str);
+inline auto utf8_to_utf16(const char* str,
+                          utfx::endian e = utfx::endian::native) {
+  std::basic_string_view<char> s{str};
+  return utf_to_utf<char16_t>(s.data(), s.data() + s.size(), e);
 }
-inline auto utf16_to_utf8(const std::u16string& str) {
-  return utf_to_utf<char>(str);
+inline auto utf16_to_utf8(const char16_t* str,
+                          utfx::endian e = utfx::endian::native) {
+  std::basic_string_view<char16_t> s{str};
+  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+}
+
+inline auto utf8_to_utf16(const std::string& str,
+                          utfx::endian e = utfx::endian::native) {
+  return utf_to_utf<char16_t>(str.data(), str.data() + str.size(), e);
+}
+inline auto utf16_to_utf8(const std::u16string& s,
+                          utfx::endian e = utfx::endian::native) {
+  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
 }
 #endif
 
