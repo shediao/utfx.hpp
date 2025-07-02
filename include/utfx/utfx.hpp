@@ -5,6 +5,17 @@
 
 namespace utfx {
 
+enum class endian {
+#if defined(_MSC_VER) && !defined(__clang__)
+  little = 0,
+  big = 1,
+  native = little
+#else
+  little = __ORDER_LITTLE_ENDIAN__,
+  big = __ORDER_BIG_ENDIAN__,
+  native = __BYTE_ORDER__
+#endif
+};
 namespace detail {
 using codepoint = uint32_t;
 constexpr inline codepoint illegal = 0xFFFFFFFFu;
@@ -358,6 +369,25 @@ inline auto utf16_to_utf8(const std::u16string& str) {
 }
 #endif
 
+inline bool is_utf8(const char* str, size_t len) {
+  const char* begin = str;
+  const char* end = str + len;
+  if (len > 3) {
+    unsigned char bom[3] = {static_cast<unsigned char>(str[0]),
+                            static_cast<unsigned char>(str[1]),
+                            static_cast<unsigned char>(str[2])};
+    if (bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF) {
+      begin = str + 3;
+    }
+  }
+  while (begin != end) {
+    const detail::codepoint c = detail::utf_traits<char>::decode(begin, end);
+    if (c == detail::incomplete || c == detail::illegal) {
+      return false;
+    }
+  }
+  return true;
+}
 }  // namespace utfx
 
 #endif  // __UTFX_UTFX_HPP__

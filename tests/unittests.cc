@@ -60,3 +60,8 @@ TEST(TESTUTFX, utf8_and_utf16le_win_format) {
   ASSERT_EQ(utfx::utf16_to_utf8({utf16le_sv.data(), utf16le_sv.size()}),
             utf8le_sv);
 }
+
+TEST(TESTUTFX, is_utf8) {
+  ASSERT_TRUE(utfx::is_utf8((const char*)utf8_win, sizeof(utf8_win)));
+  ASSERT_FALSE(utfx::is_utf8((const char*)utf16le_win, sizeof(utf16le_win)));
+}
