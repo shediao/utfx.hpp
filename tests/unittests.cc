@@ -49,8 +49,13 @@ TEST(TESTUTFX, utf8_and_utf16le_win_format) {
   auto utf8le_sv = std::string_view{reinterpret_cast<char*>(&utf8_win[0]),
                                     std::size(utf8_win)};
 
+#if defined(_WIN32)
   ASSERT_EQ(utfx::utf8_to_utf16<char16_t>({utf8le_sv.data(), utf8le_sv.size()}),
             utf16le_sv);
+#else
+  ASSERT_EQ(utfx::utf8_to_utf16({utf8le_sv.data(), utf8le_sv.size()}),
+            utf16le_sv);
+#endif
 
   ASSERT_EQ(utfx::utf16_to_utf8({utf16le_sv.data(), utf16le_sv.size()}),
             utf8le_sv);
