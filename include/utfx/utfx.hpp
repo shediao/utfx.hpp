@@ -7,8 +7,8 @@ namespace utfx {
 
 enum class endian {
 #if defined(_MSC_VER) && !defined(__clang__)
-  little = 0,
-  big = 1,
+  little = 1234,
+  big = 4321,
   native = little
 #else
   little = __ORDER_LITTLE_ENDIAN__,
@@ -21,7 +21,7 @@ using codepoint = uint32_t;
 constexpr inline codepoint illegal = 0xFFFFFFFFu;
 constexpr inline codepoint incomplete = 0xFFFFFFFEu;
 
-constexpr inline bool is_valid_codepoint(codepoint v) {
+constexpr inline bool is_valid_codepoint(codepoint v) noexcept {
   // RFC3269
   if (v > 0x10FFFF) {
     return false;
@@ -34,7 +34,7 @@ constexpr inline bool is_valid_codepoint(codepoint v) {
 }
 
 template <typename T>
-constexpr T swap_bytes(T x) {
+constexpr T swap_bytes(T x) noexcept {
   if constexpr (sizeof(T) == 2) {
     uint16_t v = static_cast<uint16_t>(x);
     v = (v << 8) | (v >> 8);
@@ -65,7 +65,7 @@ struct utf_traits<CharT, 1> {
   using char_type = CharT;
   static constexpr size_t max_width{4};
 
-  static int trail_length(char_type v) {
+  static int trail_length(char_type v) noexcept {
     unsigned char c = v;
     if (c < 128) {
       // 0x00~0x7f
@@ -91,7 +91,7 @@ struct utf_traits<CharT, 1> {
     return -1;
   }
 
-  static int width(codepoint v) {
+  static int width(codepoint v) noexcept {
     if (v < 0x80) {
       return 1;
     } else if (v < 0x800) {
@@ -102,14 +102,14 @@ struct utf_traits<CharT, 1> {
     return 4;
   }
 
-  static bool is_trail(char_type v) {
+  static bool is_trail(char_type v) noexcept {
     unsigned char c = v;
     return (c & 0b11000000u) == 0b10000000u;
   }
   static bool is_lead(char_type v) { return !is_trail(v); }
 
   template <typename Iterator>
-  static codepoint decode(Iterator& p, Iterator e) {
+  static codepoint decode(Iterator& p, Iterator e) noexcept {
     if (p == e) {
       return incomplete;
     }
@@ -166,7 +166,7 @@ struct utf_traits<CharT, 1> {
   }
 
   template <typename Iterator>
-  static codepoint decode_valid(Iterator& p) {
+  static codepoint decode_valid(Iterator& p) noexcept {
     unsigned char first = *p++;
     if (first < 192) {
       return first;
@@ -195,7 +195,7 @@ struct utf_traits<CharT, 1> {
   }
 
   template <typename Iterator>
-  static Iterator encode(codepoint c, Iterator out) {
+  static Iterator encode(codepoint c, Iterator out) noexcept {
     if (c <= 0x7F) {
       *out++ = static_cast<char_type>(c);
     } else if (c <= 0x7FF) {
@@ -225,17 +225,17 @@ struct utf_traits<CharT, 2> {
   using char_type = CharT;
   static constexpr size_t max_width{2};
   // RFC2781
-  static bool is_first_surrogate(uint16_t x) {
+  static bool is_first_surrogate(uint16_t x) noexcept {
     return 0xD800 <= x && x <= 0xDBFF;
   }
-  static bool is_second_surrogate(uint16_t x) {
+  static bool is_second_surrogate(uint16_t x) noexcept {
     return 0xDC00 <= x && x <= 0xDFFF;
   }
-  static codepoint combine_surrogate(uint16_t w1, uint16_t w2) {
+  static codepoint combine_surrogate(uint16_t w1, uint16_t w2) noexcept {
     return ((codepoint(w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
   }
 
-  static int trail_length(char_type v) {
+  static int trail_length(char_type v) noexcept {
     if (is_first_surrogate(v)) {
       return 1;
     }
@@ -244,11 +244,11 @@ struct utf_traits<CharT, 2> {
     }
     return 0;
   }
-  static bool is_trail(char_type c) { return is_second_surrogate(c); }
-  static bool is_lead(char_type c) { return !is_second_surrogate(c); }
+  static bool is_trail(char_type c) noexcept { return is_second_surrogate(c); }
+  static bool is_lead(char_type c) noexcept { return !is_second_surrogate(c); }
   template <typename Iterator>
   static codepoint decode(Iterator& current, Iterator last,
-                          endian e = endian::native) {
+                          endian e = endian::native) noexcept {
     if (current == last) {
       return incomplete;
     }
@@ -275,7 +275,8 @@ struct utf_traits<CharT, 2> {
     return combine_surrogate(w1, w2);
   }
   template <typename Iterator>
-  static codepoint decode_valid(Iterator& current, endian e = endian::native) {
+  static codepoint decode_valid(Iterator& current,
+                                endian e = endian::native) noexcept {
     uint16_t w1 = *current++;
     if (e != endian::native) {
       w1 = swap_bytes(w1);
@@ -286,9 +287,10 @@ struct utf_traits<CharT, 2> {
     uint16_t w2 = *current++;
     return combine_surrogate(w1, w2);
   }
-  static int width(codepoint u) { return u >= 0x10000 ? 2 : 1; }
+  static int width(codepoint u) noexcept { return u >= 0x10000 ? 2 : 1; }
   template <typename Iterator>
-  static Iterator encode(codepoint u, Iterator out, endian e = endian::native) {
+  static Iterator encode(codepoint u, Iterator out,
+                         endian e = endian::native) noexcept {
     if (u <= 0xFFFF) {
       uint16_t w = static_cast<uint16_t>(u);
       if (e != endian::native) {
@@ -314,16 +316,17 @@ template <typename CharT>
 struct utf_traits<CharT, 4> {
   using char_type = CharT;
   static constexpr int max_width = 1;
-  static int trail_length(char_type c) {
+  static int trail_length(char_type c) noexcept {
     if (is_valid_codepoint(c)) {
       return 0;
     }
     return -1;
   }
-  static bool is_trail(char_type /*c*/) { return false; }
-  static bool is_lead(char_type /*c*/) { return true; }
+  static bool is_trail(char_type /*c*/) noexcept { return false; }
+  static bool is_lead(char_type /*c*/) noexcept { return true; }
   template <typename Iterator>
-  static codepoint decode_valid(Iterator& current, endian e = endian::native) {
+  static codepoint decode_valid(Iterator& current,
+                                endian e = endian::native) noexcept {
     codepoint c = *current++;
     if (e != endian::native) {
       c = swap_bytes(c);
@@ -332,7 +335,7 @@ struct utf_traits<CharT, 4> {
   }
   template <typename Iterator>
   static codepoint decode(Iterator& current, Iterator last,
-                          endian e = endian::native) {
+                          endian e = endian::native) noexcept {
     if (current == last) {
       return incomplete;
     }
@@ -345,9 +348,10 @@ struct utf_traits<CharT, 4> {
     }
     return c;
   }
-  static int width(codepoint /*u*/) { return 1; }
+  static int width(codepoint /*u*/) noexcept { return 1; }
   template <typename Iterator>
-  static Iterator encode(codepoint u, Iterator out, endian e = endian::native) {
+  static Iterator encode(codepoint u, Iterator out,
+                         endian e = endian::native) noexcept {
     if (e != endian::native) {
       u = swap_bytes(u);
     }
