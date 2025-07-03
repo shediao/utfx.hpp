@@ -85,3 +85,15 @@ TEST(TESTUTFX, is_utf8) {
   ASSERT_TRUE(utfx::is_utf8((const char*)utf8_win, sizeof(utf8_win)));
   ASSERT_FALSE(utfx::is_utf8((const char*)utf16le_win, sizeof(utf16le_win)));
 }
+
+TEST(TESTUTFX, is_utf16) {
+  ASSERT_TRUE(utfx::is_utf16((const char*)utf16le_win, sizeof(utf16le_win),
+                             utfx::endian::little));
+  ASSERT_FALSE(utfx::is_utf16((const char*)utf16le_win, sizeof(utf16le_win),
+                              utfx::endian::big));
+
+  ASSERT_TRUE(utfx::is_utf16((const char*)utf16be_win, sizeof(utf16be_win),
+                             utfx::endian::big));
+  ASSERT_FALSE(utfx::is_utf16((const char*)utf16be_win, sizeof(utf16be_win),
+                              utfx::endian::little));
+}

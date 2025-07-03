@@ -480,6 +480,41 @@ inline bool is_utf8(const char* str, size_t len) {
   }
   return true;
 }
+
+inline bool is_utf16(const char* str, size_t len,
+                     utfx::endian endian = utfx::endian::native) {
+  if (len % 2 != 0) {
+    return false;
+  }
+
+  const char16_t* begin = reinterpret_cast<const char16_t*>(str);
+  const char16_t* end = begin + len / 2;
+
+  if (len > 2) {
+    unsigned char bom[2] = {static_cast<unsigned char>(str[0]),
+                            static_cast<unsigned char>(str[1])};
+    if ((endian == utfx::endian::big) && (bom[0] == 0xFF && bom[1] == 0xFE)) {
+      return false;
+    }
+    if ((endian == utfx::endian::little) &&
+        (bom[0] == 0xFE && bom[1] == 0xFF)) {
+      return false;
+    }
+    if ((bom[0] == 0xFF && bom[1] == 0xFE) ||
+        (bom[0] == 0xFE && bom[1] == 0xFF)) {
+      begin++;
+    }
+  }
+
+  while (begin != end) {
+    const detail::codepoint c =
+        detail::utf_traits<char16_t>::decode(begin, end, endian);
+    if (c == detail::incomplete || c == detail::illegal) {
+      return false;
+    }
+  }
+  return true;
+}
 }  // namespace utfx
 
 #endif  // __UTFX_UTFX_HPP__
