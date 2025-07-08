@@ -36,15 +36,44 @@ constexpr inline bool is_valid_codepoint(codepoint v) noexcept {
 template <typename T>
 constexpr T swap_bytes(T x) noexcept {
   if constexpr (sizeof(T) == 2) {
+#if defined(__GNUC__)
+    return __builtin_bswap16(x);
+#elif defined(_MSC_VER)
+    return _byteswap_ushort(x);
+#else
     uint16_t v = static_cast<uint16_t>(x);
     v = (v << 8) | (v >> 8);
     return static_cast<T>(v);
+#endif
   }
   if constexpr (sizeof(T) == 4) {
+#if defined(__GNUC__)
+    return __builtin_bswap32(x);
+#elif defined(_MSC_VER)
+    return _byteswap_ulong(x);
+#else
     uint32_t v = static_cast<uint32_t>(x);
     v = ((v & 0x000000FF) << 24) | ((v & 0x0000FF00) << 8) |
         ((v & 0x00FF0000) >> 8) | ((v & 0xFF000000) >> 24);
     return static_cast<T>(v);
+#endif
+  }
+  if constexpr (sizeof(T) == 8) {
+#if defined(__GNUC__)
+    return __builtin_bswap64(x);
+#elif defined(_MSC_VER)
+    return _byteswap_uint64(x);
+#else
+    uint64_t v = static_cast<uint64_t>(x);
+    return (((v & UINT64_C(0x00000000000000FF)) << 56) |
+            ((v & UINT64_C(0x000000000000FF00)) << 40) |
+            ((v & UINT64_C(0x0000000000FF0000)) << 24) |
+            ((v & UINT64_C(0x00000000FF000000)) << 8) |
+            ((v & UINT64_C(0x000000FF00000000)) >> 8) |
+            ((v & UINT64_C(0x0000FF0000000000)) >> 24) |
+            ((v & UINT64_C(0x00FF000000000000)) >> 40) |
+            ((v & UINT64_C(0xFF00000000000000)) >> 56));
+#endif
   }
 }
 
