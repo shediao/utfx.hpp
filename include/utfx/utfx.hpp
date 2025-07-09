@@ -608,6 +608,27 @@ inline bool is_utf16(const char* str, size_t len,
   }
   return true;
 }
+
+namespace literals {
+inline std::string operator""_utf8(const char16_t* s, std::size_t len) {
+  return utf_to_utf<char>(s, s + len, utfx::endian::native);
+}
+
+inline std::u16string operator""_utf16(const char* s, std::size_t len) {
+  return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
+}
+
+inline std::u16string operator""_utf16(const char8_t* s, std::size_t len) {
+  return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
+}
+
+#if defined(_WIN32)
+inline std::string operator""_utf8(const wchar_t* s, std::size_t len) {
+  return utf_to_utf<char>(s, s + len, utfx::endian::native);
+}
+#endif
+
+}  // namespace literals
 }  // namespace utfx
 
 #endif  // __UTFX_UTFX_HPP__

@@ -97,3 +97,10 @@ TEST(TESTUTFX, is_utf16) {
   ASSERT_FALSE(utfx::is_utf16((const char*)utf16be_win, sizeof(utf16be_win),
                               utfx::endian::little));
 }
+
+TEST(TESTUTFX, literals_test) {
+  using namespace utfx::literals;
+  ASSERT_EQ(u"你好🔥🔥🔥!"_utf8, "你好🔥🔥🔥!");
+  ASSERT_EQ("你好🔥🔥🔥!"_utf16, u"你好🔥🔥🔥!");
+  ASSERT_EQ(u8"你好🔥🔥🔥!"_utf16, u"你好🔥🔥🔥!");
+}
