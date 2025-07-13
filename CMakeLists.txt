@@ -19,7 +19,6 @@ target_include_directories(
   utfx INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                  $<INSTALL_INTERFACE:include>)
 
-target_compile_features(utfx INTERFACE cxx_std_20)
 add_library(utfx::utfx ALIAS utfx)
 
 if(UTFX_BUILD_TESTS)

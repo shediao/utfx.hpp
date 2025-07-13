@@ -153,7 +153,7 @@ struct utf_traits<CharT, 1> {
     }
 
     codepoint c = first & ((1 << (6 - trail_len)) - 1);
-    unsigned char tmp;
+    unsigned char tmp{0};
     switch (trail_len) {
       case 3:
         if (p == e) {
@@ -398,17 +398,17 @@ struct utf_traits<CharT, 4> {
 
 }  // namespace detail
 
-template <
-    typename CharOut, typename CharIn,
-    typename = std::enable_if<(sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
-                                  (sizeof(CharIn) != sizeof(CharOut)),
-                              void>::type>
+template <typename CharOut, typename CharIn,
+          typename = typename std::enable_if<
+              (sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
+                  (sizeof(CharIn) != sizeof(CharOut)),
+              void>::type>
 constexpr size_t utf_to_utf(const CharIn* begin, const CharIn* end,
                             CharOut* out, utfx::endian from_or_to) {
   CharOut* p = out;
   size_t len = 0;
   while (begin != end) {
-    detail::codepoint c;
+    detail::codepoint c{0};
     if constexpr (sizeof(CharIn) != 1) {
       c = detail::utf_traits<CharIn>::decode(begin, end, from_or_to);
     } else {
@@ -430,11 +430,11 @@ constexpr size_t utf_to_utf(const CharIn* begin, const CharIn* end,
   return p == nullptr ? len : p - out;
 }
 
-template <
-    typename CharOut, typename CharIn,
-    typename = std::enable_if<(sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
-                                  (sizeof(CharIn) != sizeof(CharOut)),
-                              void>::type>
+template <typename CharOut, typename CharIn,
+          typename = typename std::enable_if<
+              (sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
+                  (sizeof(CharIn) != sizeof(CharOut)),
+              void>::type>
 std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
                                       utfx::endian from_or_to) {
   std::basic_string<CharOut> result;
@@ -462,7 +462,7 @@ std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
 }
 
 template <typename CharOut, typename CharIn,
-          typename = std::enable_if<
+          typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
 size_t utf_to_utf(const CharIn* begin, const CharIn* end, CharOut* out,
                   utfx::endian from, utfx::endian to) {
@@ -483,7 +483,7 @@ size_t utf_to_utf(const CharIn* begin, const CharIn* end, CharOut* out,
 }
 
 template <typename CharOut, typename CharIn,
-          typename = std::enable_if<
+          typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
 std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
                                       utfx::endian from, utfx::endian to) {
@@ -618,9 +618,11 @@ inline std::u16string operator""_utf16(const char* s, std::size_t len) {
   return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
 }
 
+#if defined(__cpp_lib_char8_t)
 inline std::u16string operator""_utf16(const char8_t* s, std::size_t len) {
   return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
 }
+#endif
 
 #if defined(_WIN32)
 inline std::string operator""_utf8(const wchar_t* s, std::size_t len) {
