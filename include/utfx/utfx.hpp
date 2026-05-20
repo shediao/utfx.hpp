@@ -403,7 +403,7 @@ template <typename CharOut, typename CharIn,
               (sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
                   (sizeof(CharIn) != sizeof(CharOut)),
               void>::type>
-constexpr size_t utf_to_utf(const CharIn* begin, const CharIn* end,
+constexpr size_t transcode(const CharIn* begin, const CharIn* end,
                             CharOut* out, utfx::endian from_or_to) {
   CharOut* p = out;
   size_t len = 0;
@@ -435,7 +435,7 @@ template <typename CharOut, typename CharIn,
               (sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
                   (sizeof(CharIn) != sizeof(CharOut)),
               void>::type>
-std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
+std::basic_string<CharOut> transcode(const CharIn* begin, const CharIn* end,
                                       utfx::endian from_or_to) {
   std::basic_string<CharOut> result;
   result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
@@ -464,7 +464,7 @@ std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
 template <typename CharOut, typename CharIn,
           typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
-size_t utf_to_utf(const CharIn* begin, const CharIn* end, CharOut* out,
+size_t transcode(const CharIn* begin, const CharIn* end, CharOut* out,
                   utfx::endian from, utfx::endian to) {
   CharOut* p = out;
   size_t len = 0;
@@ -485,7 +485,7 @@ size_t utf_to_utf(const CharIn* begin, const CharIn* end, CharOut* out,
 template <typename CharOut, typename CharIn,
           typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
-std::basic_string<CharOut> utf_to_utf(const CharIn* begin, const CharIn* end,
+std::basic_string<CharOut> transcode(const CharIn* begin, const CharIn* end,
                                       utfx::endian from, utfx::endian to) {
   std::basic_string<CharOut> result;
   result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
@@ -507,50 +507,50 @@ template <typename ToCharT = wchar_t>
 inline auto utf8_to_utf16(const char* str,
                           utfx::endian e = utfx::endian::native) {
   std::basic_string_view<char> s{str};
-  return utf_to_utf<ToCharT>(s.data(), s.data() + s.size(), e);
+  return transcode<ToCharT>(s.data(), s.data() + s.size(), e);
 }
 inline auto utf16_to_utf8(const wchar_t* str,
                           utfx::endian e = utfx::endian::native) {
   std::basic_string_view<wchar_t> s{str};
-  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+  return transcode<char>(s.data(), s.data() + s.size(), e);
 }
 inline auto utf16_to_utf8(const char16_t* str,
                           utfx::endian e = utfx::endian::native) {
   std::basic_string_view<char16_t> s{str};
-  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+  return transcode<char>(s.data(), s.data() + s.size(), e);
 }
 template <typename ToCharT = wchar_t>
 inline auto utf8_to_utf16(const std::string& str,
                           utfx::endian e = utfx::endian::native) {
-  return utf_to_utf<ToCharT>(str.data(), str.data() + str.size(), e);
+  return transcode<ToCharT>(str.data(), str.data() + str.size(), e);
 }
 inline auto utf16_to_utf8(const std::wstring& str,
                           utfx::endian e = utfx::endian::native) {
-  return utf_to_utf<char>(str.data(), str.data() + str.size(), e);
+  return transcode<char>(str.data(), str.data() + str.size(), e);
 }
 inline auto utf16_to_utf8(const std::u16string& str,
                           utfx::endian e = utfx::endian::native) {
-  return utf_to_utf<char>(str.data(), str.data() + str.size(), e);
+  return transcode<char>(str.data(), str.data() + str.size(), e);
 }
 #else
 inline auto utf8_to_utf16(const char* str,
                           utfx::endian e = utfx::endian::native) {
   std::basic_string_view<char> s{str};
-  return utf_to_utf<char16_t>(s.data(), s.data() + s.size(), e);
+  return transcode<char16_t>(s.data(), s.data() + s.size(), e);
 }
 inline auto utf16_to_utf8(const char16_t* str,
                           utfx::endian e = utfx::endian::native) {
   std::basic_string_view<char16_t> s{str};
-  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+  return transcode<char>(s.data(), s.data() + s.size(), e);
 }
 
 inline auto utf8_to_utf16(const std::string& str,
                           utfx::endian e = utfx::endian::native) {
-  return utf_to_utf<char16_t>(str.data(), str.data() + str.size(), e);
+  return transcode<char16_t>(str.data(), str.data() + str.size(), e);
 }
 inline auto utf16_to_utf8(const std::u16string& s,
                           utfx::endian e = utfx::endian::native) {
-  return utf_to_utf<char>(s.data(), s.data() + s.size(), e);
+  return transcode<char>(s.data(), s.data() + s.size(), e);
 }
 #endif
 
@@ -611,22 +611,22 @@ inline bool is_utf16(const char* str, size_t len,
 
 namespace literals {
 inline std::string operator""_utf8(const char16_t* s, std::size_t len) {
-  return utf_to_utf<char>(s, s + len, utfx::endian::native);
+  return transcode<char>(s, s + len, utfx::endian::native);
 }
 
 inline std::u16string operator""_utf16(const char* s, std::size_t len) {
-  return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
+  return transcode<char16_t>(s, s + len, utfx::endian::native);
 }
 
 #if defined(__cpp_lib_char8_t)
 inline std::u16string operator""_utf16(const char8_t* s, std::size_t len) {
-  return utf_to_utf<char16_t>(s, s + len, utfx::endian::native);
+  return transcode<char16_t>(s, s + len, utfx::endian::native);
 }
 #endif
 
 #if defined(_WIN32)
 inline std::string operator""_utf8(const wchar_t* s, std::size_t len) {
-  return utf_to_utf<char>(s, s + len, utfx::endian::native);
+  return transcode<char>(s, s + len, utfx::endian::native);
 }
 #endif
 
