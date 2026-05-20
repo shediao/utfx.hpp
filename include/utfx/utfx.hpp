@@ -140,7 +140,7 @@ struct utf_traits<CharT, 1> {
 
   template <typename Iterator>
   constexpr static codepoint decode(Iterator& p, Iterator e) noexcept {
-    if (!(p < e)) {
+    if (p == e) {
       return incomplete;
     }
     unsigned char first = *p++;

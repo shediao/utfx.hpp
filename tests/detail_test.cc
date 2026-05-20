@@ -255,8 +255,9 @@ TEST(DetailUTF8, Decode_FourByte) {
 
 TEST(DetailUTF8, Decode_EmptyInput) {
   // When p == e, decode returns incomplete
-  const char* p2 = "";
-  const char* e2 = "";
+  const char empty[] = "";
+  const char* p2 = empty;
+  const char* e2 = empty;
   EXPECT_EQ(utf8_traits::decode(p2, e2), incomplete);
 }
 
