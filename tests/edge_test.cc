@@ -83,9 +83,11 @@ TEST(TranscodeTest, UTF8ToUTF16_EndianSwap) {
 
 TEST(TranscodeTest, UTF16ToUTF8_EndianInput) {
   // Create big-endian UTF-16 data for 'A' (U+0041)
-  uint16_t be_A = utfx::detail::swap_bytes<uint16_t>(u'A');
+  uint16_t be_A;
   if (utfx::endian::native == utfx::endian::big) {
     be_A = u'A';
+  } else {
+    be_A = utfx::detail::swap_bytes<uint16_t>(u'A');
   }
   const char16_t* input = reinterpret_cast<const char16_t*>(&be_A);
   auto result = utfx::transcode<char>(input, input + 1, utfx::endian::big);
