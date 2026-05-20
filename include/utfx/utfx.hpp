@@ -1,6 +1,7 @@
 #ifndef __UTFX_UTFX_HPP__
 #define __UTFX_UTFX_HPP__
 #include <cstdint>
+#include <iterator>
 #include <string>
 
 namespace utfx {
@@ -398,13 +399,309 @@ struct utf_traits<CharT, 4> {
 
 }  // namespace detail
 
+// ============================================================================
+// utf8_char — A single UTF-8 code point (1–4 bytes) within a larger string.
+// ============================================================================
+class utf8_char {
+ public:
+  using value_type = char;
+  using pointer = const char*;
+  using const_pointer = const char*;
+  using iterator = const char*;
+  using const_iterator = const char*;
+  using size_type = size_t;
+
+  constexpr utf8_char() noexcept : data_(nullptr), len_(0) {}
+  constexpr utf8_char(const char* data, size_type len) noexcept
+      : data_(data), len_(len) {}
+
+  /// Pointer to the raw UTF-8 bytes of this character.
+  constexpr const char* data() const noexcept { return data_; }
+  /// Number of bytes (1–4).
+  constexpr size_type size() const noexcept { return len_; }
+  /// Number of bytes (1–4).
+  constexpr size_type length() const noexcept { return len_; }
+  /// Number of bytes (1–4).
+  constexpr size_type byte_size() const noexcept { return len_; }
+
+  constexpr const char* begin() const noexcept { return data_; }
+  constexpr const char* end() const noexcept { return data_ + len_; }
+  constexpr const char* cbegin() const noexcept { return data_; }
+  constexpr const char* cend() const noexcept { return data_ + len_; }
+
+  /// The decoded Unicode code point (char32_t).
+  constexpr detail::codepoint code_point() const noexcept {
+    if (len_ == 0) {
+      return detail::illegal;
+    }
+    const char* p = data_;
+    return detail::utf_traits<char>::decode_valid(p);
+  }
+
+  constexpr char operator[](size_type i) const noexcept { return data_[i]; }
+  constexpr bool empty() const noexcept { return len_ == 0; }
+
+  friend constexpr bool operator==(utf8_char a, utf8_char b) noexcept {
+    return a.code_point() == b.code_point();
+  }
+  friend constexpr bool operator!=(utf8_char a, utf8_char b) noexcept {
+    return !(a == b);
+  }
+  friend constexpr bool operator<(utf8_char a, utf8_char b) noexcept {
+    return a.code_point() < b.code_point();
+  }
+  friend constexpr bool operator<=(utf8_char a, utf8_char b) noexcept {
+    return a.code_point() <= b.code_point();
+  }
+  friend constexpr bool operator>(utf8_char a, utf8_char b) noexcept {
+    return a.code_point() > b.code_point();
+  }
+  friend constexpr bool operator>=(utf8_char a, utf8_char b) noexcept {
+    return a.code_point() >= b.code_point();
+  }
+
+ private:
+  const char* data_;
+  size_type len_;
+};
+
+// ============================================================================
+// utf8_view — A lightweight, read-only view over UTF-8 encoded text.
+//
+// Provides an interface similar to std::string_view, but iterates over
+// Unicode code points (utf8_char) rather than raw bytes.
+//
+// Complexity notes:
+//   size(), operator[], substr(), and remove_prefix/remove_suffix are O(n)
+//   in the number of code points (they must scan UTF-8 boundaries).
+//   byte_size(), data(), empty(), begin(), end() are O(1).
+// ============================================================================
+class utf8_view {
+ public:
+  // --- Member types ---
+  using value_type = utf8_char;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+  using reference = utf8_char;
+  using const_reference = utf8_char;
+
+  /// Forward iterator that decodes UTF-8 on the fly.
+  class iterator {
+   public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = utf8_char;
+    using difference_type = ptrdiff_t;
+    using pointer = void;
+    using reference = utf8_char;
+
+    constexpr iterator() noexcept : pos_(nullptr) {}
+
+    constexpr reference operator*() const noexcept {
+      int trail = detail::utf_traits<char>::trail_length(*pos_);
+      size_type len = trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+      return utf8_char(pos_, len);
+    }
+
+    constexpr iterator& operator++() noexcept {
+      int trail = detail::utf_traits<char>::trail_length(*pos_);
+      pos_ += trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+      return *this;
+    }
+
+    constexpr iterator operator++(int) noexcept {
+      iterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    constexpr bool operator==(const iterator& other) const noexcept {
+      return pos_ == other.pos_;
+    }
+    constexpr bool operator!=(const iterator& other) const noexcept {
+      return !(*this == other);
+    }
+
+   private:
+    friend class utf8_view;
+    constexpr explicit iterator(const char* pos) noexcept : pos_(pos) {}
+    const char* pos_;
+  };
+
+  using const_iterator = iterator;
+
+  // --- Construction ---
+  constexpr utf8_view() noexcept : data_(nullptr), byte_size_(0) {}
+
+  /// Construct from a null-terminated C-string.
+  /*implicit*/ constexpr utf8_view(const char* str) noexcept
+      : data_(str), byte_size_(str ? std::char_traits<char>::length(str) : 0) {}
+
+  /// Construct from a pointer and byte length.
+  constexpr utf8_view(const char* str, size_type len) noexcept
+      : data_(str), byte_size_(len) {}
+
+  /// Construct from std::string.
+  /*implicit*/ constexpr utf8_view(const std::string& str) noexcept
+      : data_(str.data()), byte_size_(str.size()) {}
+
+  /// Construct from std::string_view.
+  /*implicit*/ constexpr utf8_view(std::string_view sv) noexcept
+      : data_(sv.data()), byte_size_(sv.size()) {}
+
+  // --- Iterators ---
+  constexpr iterator begin() const noexcept { return iterator(data_); }
+  constexpr iterator end() const noexcept {
+    return iterator(data_ + byte_size_);
+  }
+  constexpr const_iterator cbegin() const noexcept { return begin(); }
+  constexpr const_iterator cend() const noexcept { return end(); }
+
+  // --- Size / capacity ---
+  /// Number of code points. O(n) — scans the entire view.
+  constexpr size_type size() const noexcept {
+    size_type count = 0;
+    for (auto it = begin(); it != end(); ++it) {
+      ++count;
+    }
+    return count;
+  }
+  /// Number of code points. O(n).
+  constexpr size_type length() const noexcept { return size(); }
+  /// Number of raw bytes. O(1).
+  constexpr size_type byte_size() const noexcept { return byte_size_; }
+  /// True if the view contains no bytes. O(1).
+  constexpr bool empty() const noexcept { return byte_size_ == 0; }
+  /// Maximum possible size.
+  static constexpr size_type npos = ~size_type(0);
+  constexpr size_type max_size() const noexcept { return npos - 1; }
+
+  // --- Element access ---
+  /// Pointer to the raw underlying bytes. O(1).
+  constexpr const char* data() const noexcept { return data_; }
+
+  /// First code point. O(1). UB if empty.
+  constexpr utf8_char front() const noexcept {
+    int trail = detail::utf_traits<char>::trail_length(*data_);
+    size_type len = trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+    return utf8_char(data_, len);
+  }
+
+  /// Last code point. O(last-character-length). UB if empty.
+  constexpr utf8_char back() const noexcept {
+    const char* p = data_ + byte_size_;
+    while (p > data_ && detail::utf_traits<char>::is_trail(*(p - 1))) {
+      --p;
+    }
+    --p;
+    return utf8_char(p, static_cast<size_type>(data_ + byte_size_ - p));
+  }
+
+  /// Nth code point. O(n). UB if n >= size().
+  constexpr utf8_char operator[](size_type n) const noexcept {
+    auto it = begin();
+    while (n-- > 0) {
+      ++it;
+    }
+    return *it;
+  }
+
+  // --- Modifiers (view-level) ---
+  /// Remove the first n code points from the view. O(n).
+  constexpr void remove_prefix(size_type n) noexcept {
+    while (n-- > 0 && byte_size_ > 0) {
+      int trail = detail::utf_traits<char>::trail_length(*data_);
+      size_type len = trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+      data_ += len;
+      byte_size_ -= len;
+    }
+  }
+
+  /// Remove the last n code points from the view. O(n).
+  constexpr void remove_suffix(size_type n) noexcept {
+    while (n-- > 0 && byte_size_ > 0) {
+      const char* p = data_ + byte_size_;
+      while (p > data_ && detail::utf_traits<char>::is_trail(*(p - 1))) {
+        --p;
+      }
+      --p;
+      byte_size_ = static_cast<size_type>(p - data_);
+    }
+  }
+
+  // --- Substring ---
+  /// Returns a view of the substring [pos, pos+count). O(pos+count).
+  constexpr utf8_view substr(size_type pos = 0,
+                             size_type count = npos) const noexcept {
+    const char* start = data_;
+    const char* end_pos = data_ + byte_size_;
+    while (pos-- > 0 && start < end_pos) {
+      int trail = detail::utf_traits<char>::trail_length(*start);
+      start += trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+    }
+    if (start >= end_pos) {
+      return utf8_view();
+    }
+    const char* sub_end = start;
+    while (count-- > 0 && sub_end < end_pos) {
+      int trail = detail::utf_traits<char>::trail_length(*sub_end);
+      sub_end += trail < 0 ? 1 : static_cast<size_type>(trail + 1);
+    }
+    return utf8_view(start, static_cast<size_type>(sub_end - start));
+  }
+
+  // --- Swap ---
+  constexpr void swap(utf8_view& other) noexcept {
+    const char* tmp_data = data_;
+    size_type tmp_size = byte_size_;
+    data_ = other.data_;
+    byte_size_ = other.byte_size_;
+    other.data_ = tmp_data;
+    other.byte_size_ = tmp_size;
+  }
+
+  // --- Conversion ---
+  /// Implicit conversion to std::string_view (raw bytes).
+  constexpr operator std::string_view() const noexcept {
+    return std::string_view(data_, byte_size_);
+  }
+
+  // --- Comparison (bytewise, consistent with code-point order for valid UTF-8)
+  friend constexpr bool operator==(utf8_view a, utf8_view b) noexcept {
+    return std::string_view(a.data_, a.byte_size_) ==
+           std::string_view(b.data_, b.byte_size_);
+  }
+  friend constexpr bool operator!=(utf8_view a, utf8_view b) noexcept {
+    return !(a == b);
+  }
+  friend constexpr bool operator<(utf8_view a, utf8_view b) noexcept {
+    return std::string_view(a.data_, a.byte_size_) <
+           std::string_view(b.data_, b.byte_size_);
+  }
+  friend constexpr bool operator<=(utf8_view a, utf8_view b) noexcept {
+    return std::string_view(a.data_, a.byte_size_) <=
+           std::string_view(b.data_, b.byte_size_);
+  }
+  friend constexpr bool operator>(utf8_view a, utf8_view b) noexcept {
+    return std::string_view(a.data_, a.byte_size_) >
+           std::string_view(b.data_, b.byte_size_);
+  }
+  friend constexpr bool operator>=(utf8_view a, utf8_view b) noexcept {
+    return std::string_view(a.data_, a.byte_size_) >=
+           std::string_view(b.data_, b.byte_size_);
+  }
+
+ private:
+  const char* data_;
+  size_type byte_size_;
+};
+
 template <typename CharOut, typename CharIn,
           typename = typename std::enable_if<
               (sizeof(CharIn) == 1 || sizeof(CharOut) == 1) &&
                   (sizeof(CharIn) != sizeof(CharOut)),
               void>::type>
-constexpr size_t transcode(const CharIn* begin, const CharIn* end,
-                            CharOut* out, utfx::endian from_or_to) {
+constexpr size_t transcode(const CharIn* begin, const CharIn* end, CharOut* out,
+                           utfx::endian from_or_to) {
   CharOut* p = out;
   size_t len = 0;
   while (begin != end) {
@@ -436,7 +733,7 @@ template <typename CharOut, typename CharIn,
                   (sizeof(CharIn) != sizeof(CharOut)),
               void>::type>
 std::basic_string<CharOut> transcode(const CharIn* begin, const CharIn* end,
-                                      utfx::endian from_or_to) {
+                                     utfx::endian from_or_to) {
   std::basic_string<CharOut> result;
   result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
                  detail::utf_traits<CharIn>::max_width);
@@ -465,7 +762,7 @@ template <typename CharOut, typename CharIn,
           typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
 size_t transcode(const CharIn* begin, const CharIn* end, CharOut* out,
-                  utfx::endian from, utfx::endian to) {
+                 utfx::endian from, utfx::endian to) {
   CharOut* p = out;
   size_t len = 0;
   while (begin != end) {
@@ -486,7 +783,7 @@ template <typename CharOut, typename CharIn,
           typename = typename std::enable_if<
               (sizeof(CharIn) != 1 && sizeof(CharOut) != 1), void>::type>
 std::basic_string<CharOut> transcode(const CharIn* begin, const CharIn* end,
-                                      utfx::endian from, utfx::endian to) {
+                                     utfx::endian from, utfx::endian to) {
   std::basic_string<CharOut> result;
   result.reserve((end - begin) * detail::utf_traits<CharOut>::max_width /
                  detail::utf_traits<CharIn>::max_width);
