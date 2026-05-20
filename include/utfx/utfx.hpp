@@ -541,7 +541,7 @@ class utf8_view {
       : data_(str), byte_size_(len) {}
 
   /// Construct from std::string.
-  /*implicit*/ constexpr utf8_view(const std::string& str) noexcept
+  /*implicit*/ utf8_view(const std::string& str) noexcept
       : data_(str.data()), byte_size_(str.size()) {}
 
   /// Construct from std::string_view.
