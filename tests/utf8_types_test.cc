@@ -1115,3 +1115,14 @@ TEST(UTF8TypesIntegrationTest, SwapAndCompare) {
 
   EXPECT_FALSE(a == b);
 }
+
+TEST(UTF8TypesIntegrationTest, Chinese) {
+  utfx::utf8_view a("床前明月光，疑是地上霜；举头望明月，低头思故乡。");
+  ASSERT_EQ(a.size(), 24u);
+  ASSERT_EQ((a.substr(0, 5)), "床前明月光");
+  ASSERT_EQ((a.substr(6, 5)), "疑是地上霜");
+  ASSERT_EQ((a.substr(12, 5)), "举头望明月");
+  ASSERT_EQ((a.substr(18, 5)), "低头思故乡");
+
+  ASSERT_EQ((a.substr(0, 120)), a);
+}
