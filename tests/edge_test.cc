@@ -196,6 +196,38 @@ TEST(IsUTF8Test, BOM_Skip) {
   EXPECT_TRUE(utfx::is_utf8(with_bom, 8));
 }
 
+TEST(IsUTF8Test, BOM_Skip_CJK) {
+  // BOM + CJK multi-byte characters (你好 = E4 BD A0 E5 A5 BD)
+  const char with_bom[] =
+      "\xEF\xBB\xBF"
+      "\xE4\xBD\xA0\xE5\xA5\xBD";
+  EXPECT_TRUE(utfx::is_utf8(with_bom, 9));
+}
+
+TEST(IsUTF8Test, BOM_Skip_Emoji) {
+  // BOM + supplementary plane emoji (🔥 = F0 9F 94 A5)
+  const char with_bom[] =
+      "\xEF\xBB\xBF"
+      "\xF0\x9F\x94\xA5";
+  EXPECT_TRUE(utfx::is_utf8(with_bom, 7));
+}
+
+TEST(IsUTF8Test, BOM_FollowedByInvalid) {
+  // BOM followed by invalid byte
+  const char with_bom[] =
+      "\xEF\xBB\xBF"
+      "\xFF";
+  EXPECT_FALSE(utfx::is_utf8(with_bom, 4));
+}
+
+TEST(IsUTF8Test, BOM_FollowedByIncomplete) {
+  // BOM followed by truncated 3-byte sequence
+  const char with_bom[] =
+      "\xEF\xBB\xBF"
+      "\xE4\xBD";  // Missing third byte
+  EXPECT_FALSE(utfx::is_utf8(with_bom, 5));
+}
+
 TEST(IsUTF8Test, BOM_Only) {
   const char bom_only[] = "\xEF\xBB\xBF";
   EXPECT_TRUE(utfx::is_utf8(bom_only, 3));
@@ -205,6 +237,20 @@ TEST(IsUTF8Test, BOM_LessThan3Bytes) {
   // Too short for BOM detection
   const char short_str[] = "\xEF\xBB";
   EXPECT_FALSE(utfx::is_utf8(short_str, 2));  // Incomplete sequence
+}
+
+TEST(IsUTF8Test, NonBOM_StartingWithEF) {
+  // Starts with 0xEF but not a BOM (EF BB BB = valid 3-byte sequence for
+  // U+FEBB)
+  const char non_bom[] = "\xEF\xBB\xBB";
+  EXPECT_TRUE(utfx::is_utf8(non_bom, 3));
+}
+
+TEST(IsUTF8Test, BOM_Skip_OnlyBOM_EmptyContent) {
+  // When BOM is the entire content, after skipping BOM there's nothing left
+  // This is valid (empty string after BOM removal)
+  const char bom_only[] = "\xEF\xBB\xBF";
+  EXPECT_TRUE(utfx::is_utf8(bom_only, 3));
 }
 
 TEST(IsUTF8Test, IncompleteSequence) {
@@ -285,8 +331,6 @@ TEST(IsUTF16Test, UnpairedSecondSurrogate) {
 TEST(IsUTF16Test, BOM_LE_Native) {
   // Little-endian BOM: FF FE
   const unsigned char bom_le[] = {0xFF, 0xFE, 'A', 0x00};
-  // This test uses native endian (LE on most platforms), so the BOM
-  // indicates LE, which matches native on LE machines.
   bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_le), 4,
                                utfx::endian::little);
   EXPECT_TRUE(result);
@@ -298,6 +342,38 @@ TEST(IsUTF16Test, BOM_BE_WithBEEndian) {
   bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_be), 4,
                                utfx::endian::big);
   EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_LE_Only_MatchingEndian) {
+  // BOM-only (2 bytes), LE BOM with LE endian
+  const unsigned char bom_le[] = {0xFF, 0xFE};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_le), 2,
+                               utfx::endian::little);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_BE_Only_MatchingEndian) {
+  // BOM-only (2 bytes), BE BOM with BE endian
+  const unsigned char bom_be[] = {0xFE, 0xFF};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_be), 2,
+                               utfx::endian::big);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_LE_Only_MismatchedEndian) {
+  // BOM-only (2 bytes), LE BOM with BE endian → should reject
+  const unsigned char bom_le[] = {0xFF, 0xFE};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_le), 2,
+                               utfx::endian::big);
+  EXPECT_FALSE(result);
+}
+
+TEST(IsUTF16Test, BOM_BE_Only_MismatchedEndian) {
+  // BOM-only (2 bytes), BE BOM with LE endian → should reject
+  const unsigned char bom_be[] = {0xFE, 0xFF};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_be), 2,
+                               utfx::endian::little);
+  EXPECT_FALSE(result);
 }
 
 TEST(IsUTF16Test, BOM_Mismatch_BE_BOM_With_LE_Endian) {
@@ -313,6 +389,46 @@ TEST(IsUTF16Test, BOM_Mismatch_LE_BOM_With_BE_Endian) {
   const unsigned char bom_le[] = {0xFF, 0xFE, 'A', 0x00};
   bool result = utfx::is_utf16(reinterpret_cast<const char*>(bom_le), 4,
                                utfx::endian::big);
+  EXPECT_FALSE(result);
+}
+
+TEST(IsUTF16Test, BOM_LE_WithSurrogatePair) {
+  // LE BOM + U+1F600 surrogate pair (D83D DE00 in LE: 3D D8 00 DE)
+  const unsigned char data[] = {0xFF, 0xFE, 0x3D, 0xD8, 0x00, 0xDE};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(data), 6,
+                               utfx::endian::little);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_BE_WithSurrogatePair) {
+  // BE BOM + U+1F600 surrogate pair (D83D DE00 in BE: D8 3D DE 00)
+  const unsigned char data[] = {0xFE, 0xFF, 0xD8, 0x3D, 0xDE, 0x00};
+  bool result =
+      utfx::is_utf16(reinterpret_cast<const char*>(data), 6, utfx::endian::big);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_LE_WithCJK) {
+  // LE BOM + U+4F60 (你 = 60 4F in LE)
+  const unsigned char data[] = {0xFF, 0xFE, 0x60, 0x4F};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(data), 4,
+                               utfx::endian::little);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, NoBOM_WithNativeEndian_CJK) {
+  // No BOM, CJK character U+4F60 in native endian
+  const char16_t data[] = {0x4F60, 0x0000};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(data), 2,
+                               utfx::endian::native);
+  EXPECT_TRUE(result);
+}
+
+TEST(IsUTF16Test, BOM_FollowedByUnpairedSurrogate) {
+  // LE BOM + unpaired first surrogate (D83D in LE: 3D D8)
+  const unsigned char data[] = {0xFF, 0xFE, 0x3D, 0xD8};
+  bool result = utfx::is_utf16(reinterpret_cast<const char*>(data), 4,
+                               utfx::endian::little);
   EXPECT_FALSE(result);
 }
 

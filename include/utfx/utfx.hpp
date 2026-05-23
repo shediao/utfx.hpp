@@ -854,7 +854,7 @@ inline auto utf16_to_utf8(const std::u16string& s,
 inline bool is_utf8(const char* str, size_t len) {
   const char* begin = str;
   const char* end = str + len;
-  if (len > 3) {
+  if (len >= 3) {
     unsigned char bom[3] = {static_cast<unsigned char>(str[0]),
                             static_cast<unsigned char>(str[1]),
                             static_cast<unsigned char>(str[2])};
@@ -880,7 +880,7 @@ inline bool is_utf16(const char* str, size_t len,
   const char16_t* begin = reinterpret_cast<const char16_t*>(str);
   const char16_t* end = begin + len / 2;
 
-  if (len > 2) {
+  if (len >= 2) {
     unsigned char bom[2] = {static_cast<unsigned char>(str[0]),
                             static_cast<unsigned char>(str[1])};
     if ((endian == utfx::endian::big) && (bom[0] == 0xFF && bom[1] == 0xFE)) {
