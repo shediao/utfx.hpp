@@ -800,80 +800,57 @@ std::basic_string<CharOut> transcode(const CharIn* begin, const CharIn* end,
 }
 
 #if defined(_WIN32)
-template <typename ToCharT = wchar_t>
-inline auto utf8_to_utf16(const char* cstr,
+using default_utf16_char_t = wchar_t;
+#else
+using default_utf16_char_t = char16_t;
+#endif
+
+// utf8_to_utf16 — 3 template overloads
+template <
+    typename ToCharT = default_utf16_char_t, typename CharT,
+    typename = std::enable_if_t<sizeof(CharT) == 1 && sizeof(ToCharT) == 2>>
+inline auto utf8_to_utf16(const CharT* cstr,
                           utfx::endian e = utfx::endian::native) {
-  std::basic_string_view<char> s{cstr};
+  std::basic_string_view<CharT> s{cstr};
   return transcode<ToCharT>(s.data(), s.data() + s.size(), e);
 }
-template <typename ToCharT = wchar_t>
-inline auto utf8_to_utf16(const std::string& str,
+
+template <
+    typename ToCharT = default_utf16_char_t, typename CharT,
+    typename = std::enable_if_t<sizeof(CharT) == 1 && sizeof(ToCharT) == 2>>
+inline auto utf8_to_utf16(const std::basic_string<CharT>& str,
                           utfx::endian e = utfx::endian::native) {
   return transcode<ToCharT>(str.data(), str.data() + str.size(), e);
 }
-template <typename ToCharT = wchar_t>
-inline auto utf8_to_utf16(const std::string_view str_view,
+
+template <
+    typename ToCharT = default_utf16_char_t, typename CharT,
+    typename = std::enable_if_t<sizeof(CharT) == 1 && sizeof(ToCharT) == 2>>
+inline auto utf8_to_utf16(const std::basic_string_view<CharT> str_view,
                           utfx::endian e = utfx::endian::native) {
   return transcode<ToCharT>(str_view.data(), str_view.data() + str_view.size(),
                             e);
 }
-inline auto utf16_to_utf8(const wchar_t* cstr,
+
+// utf16_to_utf8 — 3 template overloads
+template <typename CharT, typename = std::enable_if_t<sizeof(CharT) == 2>>
+inline auto utf16_to_utf8(const CharT* cstr,
                           utfx::endian e = utfx::endian::native) {
-  std::basic_string_view<wchar_t> s{cstr};
-  return transcode<char>(s.data(), s.data() + s.size(), e);
-}
-inline auto utf16_to_utf8(const char16_t* cstr,
-                          utfx::endian e = utfx::endian::native) {
-  std::basic_string_view<char16_t> s{cstr};
-  return transcode<char>(s.data(), s.data() + s.size(), e);
-}
-inline auto utf16_to_utf8(const std::wstring& str,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char>(str.data(), str.data() + str.size(), e);
-}
-inline auto utf16_to_utf8(const std::wstring_view str_view,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char>(str_view.data(), str_view.data() + str_view.size(), e);
-}
-inline auto utf16_to_utf8(const std::u16string& str,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char>(str.data(), str.data() + str.size(), e);
-}
-inline auto utf16_to_utf8(const std::u16string_view str_view,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char>(str_view.data(), str_view.data() + str_view.size(), e);
-}
-#else
-inline auto utf8_to_utf16(const char* cstr,
-                          utfx::endian e = utfx::endian::native) {
-  std::basic_string_view<char> s{cstr};
-  return transcode<char16_t>(s.data(), s.data() + s.size(), e);
-}
-inline auto utf16_to_utf8(const char16_t* cstr,
-                          utfx::endian e = utfx::endian::native) {
-  std::basic_string_view<char16_t> s{cstr};
+  std::basic_string_view<CharT> s{cstr};
   return transcode<char>(s.data(), s.data() + s.size(), e);
 }
 
-inline auto utf8_to_utf16(const std::string& str,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char16_t>(str.data(), str.data() + str.size(), e);
-}
-inline auto utf16_to_utf8(const std::u16string& str,
+template <typename CharT, typename = std::enable_if_t<sizeof(CharT) == 2>>
+inline auto utf16_to_utf8(const std::basic_string<CharT>& str,
                           utfx::endian e = utfx::endian::native) {
   return transcode<char>(str.data(), str.data() + str.size(), e);
 }
 
-inline auto utf8_to_utf16(const std::string_view str_view,
-                          utfx::endian e = utfx::endian::native) {
-  return transcode<char16_t>(str_view.data(), str_view.data() + str_view.size(),
-                             e);
-}
-inline auto utf16_to_utf8(const std::u16string_view str_view,
+template <typename CharT, typename = std::enable_if_t<sizeof(CharT) == 2>>
+inline auto utf16_to_utf8(const std::basic_string_view<CharT> str_view,
                           utfx::endian e = utfx::endian::native) {
   return transcode<char>(str_view.data(), str_view.data() + str_view.size(), e);
 }
-#endif
 
 inline bool is_utf8(const char* str, size_t len) {
   const char* begin = str;
