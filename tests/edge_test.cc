@@ -504,6 +504,212 @@ TEST(ConvenienceTest, UTF16ToUTF8_StdU16String) {
 }
 
 // ============================================================================
+// utf8_to_utf16 / utf16_to_utf8 — template parameter form tests
+// ============================================================================
+
+// --- utf8_to_utf16: const CharT* input ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_FromPointer) {
+  const char* input = "Hello UTF 测试 🔥!";
+  auto result = utfx::utf8_to_utf16(input);
+#if defined(_WIN32)
+  EXPECT_EQ(result, L"Hello UTF 测试 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#else
+  EXPECT_EQ(result, u"Hello UTF 测试 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#endif
+}
+
+// --- utf8_to_utf16: std::basic_string<CharT> const& input ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_FromString) {
+  std::string input = "C++ 模板 🔥!";
+  auto result = utfx::utf8_to_utf16(input);
+#if defined(_WIN32)
+  EXPECT_EQ(result, L"C++ 模板 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#else
+  EXPECT_EQ(result, u"C++ 模板 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#endif
+}
+
+// --- utf8_to_utf16: std::basic_string_view<CharT> input ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_FromStringView) {
+  std::string_view input = "string_view 测试 🔥!";
+  auto result = utfx::utf8_to_utf16(input);
+#if defined(_WIN32)
+  EXPECT_EQ(result, L"string_view 测试 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#else
+  EXPECT_EQ(result, u"string_view 测试 🔥!");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+#endif
+}
+
+// --- utf8_to_utf16: explicit ToCharT = char16_t ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_ExplicitChar16T) {
+  std::string input = "Hello 🔥";
+  auto result = utfx::utf8_to_utf16<char16_t>(input);
+  EXPECT_EQ(result, u"Hello 🔥");
+  // Roundtrip
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+}
+
+// --- utf8_to_utf16<char16_t> with all 3 parameter forms ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_ExplicitChar16T_AllForms) {
+  const char* cstr = "指针形式";
+  std::string str = "字符串形式";
+  std::string_view sv = "视图形式";
+
+  auto from_ptr = utfx::utf8_to_utf16<char16_t>(cstr);
+  auto from_str = utfx::utf8_to_utf16<char16_t>(str);
+  auto from_sv = utfx::utf8_to_utf16<char16_t>(sv);
+
+  EXPECT_EQ(from_ptr, u"指针形式");
+  EXPECT_EQ(from_str, u"字符串形式");
+  EXPECT_EQ(from_sv, u"视图形式");
+  EXPECT_EQ(utfx::utf16_to_utf8(from_ptr), "指针形式");
+  EXPECT_EQ(utfx::utf16_to_utf8(from_str), "字符串形式");
+  EXPECT_EQ(utfx::utf16_to_utf8(from_sv), "视图形式");
+}
+
+#if defined(_WIN32)
+// --- utf8_to_utf16: explicit ToCharT = wchar_t ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_ExplicitWcharT) {
+  std::string input = "Hello 🔥";
+  auto result = utfx::utf8_to_utf16<wchar_t>(input);
+  EXPECT_EQ(result, L"Hello 🔥");
+  EXPECT_EQ(utfx::utf16_to_utf8(result), input);
+}
+
+// --- Windows: utf16_to_utf8 with wchar_t (all 3 forms) ---
+TEST(ConvenienceTemplateTest, UTF16ToUTF8_FromWcharT_AllForms) {
+  const wchar_t* cstr = L"宽字符指针";
+  std::wstring str = L"宽字符串";
+  std::wstring_view sv = L"宽字符视图";
+
+  auto from_ptr = utfx::utf16_to_utf8(cstr);
+  auto from_str = utfx::utf16_to_utf8(str);
+  auto from_sv = utfx::utf16_to_utf8(sv);
+
+  EXPECT_EQ(from_ptr, "宽字符指针");
+  EXPECT_EQ(from_str, "宽字符串");
+  EXPECT_EQ(from_sv, "宽字符视图");
+  EXPECT_EQ(utfx::utf8_to_utf16(from_ptr), cstr);
+  EXPECT_EQ(utfx::utf8_to_utf16(from_str), str);
+  EXPECT_EQ(utfx::utf8_to_utf16(from_sv), sv);
+}
+#endif
+
+// --- utf16_to_utf8: char16_t (all 3 forms) ---
+TEST(ConvenienceTemplateTest, UTF16ToUTF8_FromChar16T_AllForms) {
+  const char16_t* cstr = u"char16_t 指针";
+  std::u16string str = u"char16_t 字符串";
+  std::u16string_view sv = u"char16_t 视图";
+
+  auto from_ptr = utfx::utf16_to_utf8(cstr);
+  auto from_str = utfx::utf16_to_utf8(str);
+  auto from_sv = utfx::utf16_to_utf8(sv);
+
+  EXPECT_EQ(from_ptr, "char16_t 指针");
+  EXPECT_EQ(from_str, "char16_t 字符串");
+  EXPECT_EQ(from_sv, "char16_t 视图");
+  EXPECT_EQ(utfx::utf8_to_utf16<char16_t>(from_ptr), cstr);
+  EXPECT_EQ(utfx::utf8_to_utf16<char16_t>(from_str), str);
+  EXPECT_EQ(utfx::utf8_to_utf16<char16_t>(from_sv), sv);
+}
+
+// --- Roundtrip: utf8_to_utf16 ↔ utf16_to_utf8 (all 3×3 combinations) ---
+TEST(ConvenienceTemplateTest, Roundtrip_AllCombinations) {
+  const char* utf8_cstr = "组合测试 🔥!";
+  std::string utf8_str = utf8_cstr;
+  std::string_view utf8_sv = utf8_str;
+
+  // utf8_to_utf16: pointer in, string out
+  auto u16_from_ptr = utfx::utf8_to_utf16(utf8_cstr);
+  // utf8_to_utf16: string in, string out
+  auto u16_from_str = utfx::utf8_to_utf16(utf8_str);
+  // utf8_to_utf16: string_view in, string out
+  auto u16_from_sv = utfx::utf8_to_utf16(utf8_sv);
+
+  // All three should produce the same result
+#if defined(_WIN32)
+  EXPECT_EQ(u16_from_ptr, u16_from_str);
+  EXPECT_EQ(u16_from_str, u16_from_sv);
+#else
+  EXPECT_EQ(u16_from_ptr, u16_from_str);
+  EXPECT_EQ(u16_from_str, u16_from_sv);
+#endif
+
+  // utf16_to_utf8: each output back
+  EXPECT_EQ(utfx::utf16_to_utf8(u16_from_ptr), utf8_cstr);
+  EXPECT_EQ(utfx::utf16_to_utf8(u16_from_str), utf8_str);
+  EXPECT_EQ(utfx::utf16_to_utf8(u16_from_sv), utf8_sv);
+}
+
+// --- utf8_to_utf16 with supplementary characters (4-byte UTF-8) ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_Supplementary) {
+  // U+1F600 (😀) = F0 9F 98 80 in UTF-8, D83D DE00 in UTF-16
+  std::string input = "\xF0\x9F\x98\x80";
+  auto result = utfx::utf8_to_utf16(input);
+  EXPECT_EQ(result.size(), 2u);
+
+  auto back = utfx::utf16_to_utf8(result);
+  EXPECT_EQ(back, input);
+}
+
+// --- Empty string handling ---
+TEST(ConvenienceTemplateTest, EmptyString) {
+  EXPECT_TRUE(utfx::utf8_to_utf16("").empty());
+  EXPECT_TRUE(utfx::utf8_to_utf16(std::string{}).empty());
+  EXPECT_TRUE(utfx::utf8_to_utf16(std::string_view{}).empty());
+
+  EXPECT_TRUE(utfx::utf16_to_utf8(u"").empty());
+  EXPECT_TRUE(utfx::utf16_to_utf8(std::u16string{}).empty());
+  EXPECT_TRUE(utfx::utf16_to_utf8(std::u16string_view{}).empty());
+
+#if defined(_WIN32)
+  EXPECT_TRUE(utfx::utf16_to_utf8(L"").empty());
+  EXPECT_TRUE(utfx::utf16_to_utf8(std::wstring{}).empty());
+  EXPECT_TRUE(utfx::utf16_to_utf8(std::wstring_view{}).empty());
+#endif
+}
+
+// --- ASCII-only roundtrip ---
+TEST(ConvenienceTemplateTest, ASCIIRoundtrip) {
+  const char* ascii = "Hello, World! 12345";
+  auto u16 = utfx::utf8_to_utf16(ascii);
+  auto back = utfx::utf16_to_utf8(u16);
+  EXPECT_EQ(back, ascii);
+}
+
+#if defined(__cpp_lib_char8_t)
+// --- utf8_to_utf16 with char8_t input ---
+TEST(ConvenienceTemplateTest, UTF8ToUTF16_FromChar8T_AllForms) {
+  const char8_t* cstr = u8"char8_t 指针 🔥";
+  std::u8string str = u8"char8_t 字符串 🔥";
+  std::u8string_view sv = u8"char8_t 视图 🔥";
+
+  auto from_ptr = utfx::utf8_to_utf16(cstr);
+  auto from_str = utfx::utf8_to_utf16(str);
+  auto from_sv = utfx::utf8_to_utf16(sv);
+
+  EXPECT_EQ(utfx::utf16_to_utf8(from_ptr),
+            reinterpret_cast<const char*>(u8"char8_t 指针 🔥"));
+  EXPECT_EQ(utfx::utf16_to_utf8(from_str),
+            reinterpret_cast<const char*>(u8"char8_t 字符串 🔥"));
+  EXPECT_EQ(utfx::utf16_to_utf8(from_sv),
+            reinterpret_cast<const char*>(u8"char8_t 视图 🔥"));
+
+  // Explicit char16_t output
+  auto u16_from_ptr = utfx::utf8_to_utf16<char16_t>(cstr);
+  EXPECT_EQ(u16_from_ptr, u"char8_t 指针 🔥");
+  EXPECT_EQ(utfx::utf16_to_utf8(u16_from_ptr),
+            reinterpret_cast<const char*>(u8"char8_t 指针 🔥"));
+}
+#endif
+
+// ============================================================================
 // literals tests
 // ============================================================================
 
