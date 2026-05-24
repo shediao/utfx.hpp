@@ -853,9 +853,9 @@ inline auto utf16_to_utf8(const std::basic_string_view<CharT> str_view,
 }
 
 inline bool is_utf8(const void* data, size_t len) {
-  const char* str = static_cast<const char*>(data);
-  const char* begin = str;
-  const char* end = begin + len;
+  const unsigned char* str = static_cast<const unsigned char*>(data);
+  const unsigned char* begin = str;
+  const unsigned char* end = str + len;
   if (len >= 3) {
     unsigned char bom[3] = {static_cast<unsigned char>(str[0]),
                             static_cast<unsigned char>(str[1]),
@@ -875,7 +875,7 @@ inline bool is_utf8(const void* data, size_t len) {
 
 inline bool is_utf16(const void* data, size_t len,
                      utfx::endian endian = utfx::endian::native) {
-  const char* str = static_cast<const char*>(data);
+  const unsigned char* str = static_cast<const unsigned char*>(data);
   if (len % 2 != 0) {
     return false;
   }
