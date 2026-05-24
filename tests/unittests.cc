@@ -60,25 +60,17 @@ TEST(TESTUTFX, utf8_and_utf16le_win_format) {
                                     std::size(utf8_win)};
 
 #if defined(_WIN32)
-  ASSERT_EQ(utfx::utf8_to_utf16<char16_t>({utf8le_sv.data(), utf8le_sv.size()}),
-            utf16le_sv);
-  ASSERT_EQ(utfx::utf8_to_utf16<char16_t>({utf8le_sv.data(), utf8le_sv.size()},
-                                          utfx::endian::big),
+  ASSERT_EQ(utfx::utf8_to_utf16<char16_t>(utf8le_sv), utf16le_sv);
+  ASSERT_EQ(utfx::utf8_to_utf16<char16_t>(utf8le_sv, utfx::endian::big),
             utf16be_sv);
 #else
-  ASSERT_EQ(utfx::utf8_to_utf16({utf8le_sv.data(), utf8le_sv.size()}),
-            utf16le_sv);
-  ASSERT_EQ(utfx::utf8_to_utf16({utf8le_sv.data(), utf8le_sv.size()},
-                                utfx::endian::big),
-            utf16be_sv);
+  ASSERT_EQ(utfx::utf8_to_utf16(utf8le_sv), utf16le_sv);
+  ASSERT_EQ(utfx::utf8_to_utf16(utf8le_sv, utfx::endian::big), utf16be_sv);
 #endif
 
-  ASSERT_EQ(utfx::utf16_to_utf8({utf16le_sv.data(), utf16le_sv.size()}),
-            utf8le_sv);
+  ASSERT_EQ(utfx::utf16_to_utf8(utf16le_sv), utf8le_sv);
 
-  ASSERT_EQ(utfx::utf16_to_utf8({utf16be_sv.data(), utf16be_sv.size()},
-                                utfx::endian::big),
-            utf8le_sv);
+  ASSERT_EQ(utfx::utf16_to_utf8(utf16be_sv, utfx::endian::big), utf8le_sv);
 }
 
 TEST(TESTUTFX, is_utf8) {
@@ -103,4 +95,49 @@ TEST(TESTUTFX, literals_test) {
   ASSERT_EQ(u"你好🔥🔥🔥!"_utf8, "你好🔥🔥🔥!");
   ASSERT_EQ("你好🔥🔥🔥!"_utf16, u"你好🔥🔥🔥!");
   ASSERT_EQ(u8"你好🔥🔥🔥!"_utf16, u"你好🔥🔥🔥!");
+}
+
+TEST(TESTUTFX, string_and_string_view_overloads) {
+  std::string utf8_str = "Hello UTF \xe6\xb5\x8b\xe8\xaf\x95 \xf0\x9f\x94\xa5!";
+  std::string_view utf8_sv = utf8_str;
+
+#if defined(_WIN32)
+  // Windows: wchar_t overloads
+  std::wstring utf16_str = L"Hello UTF 测试 🔥!";
+  std::wstring_view utf16_sv = utf16_str;
+
+  // utf8_to_utf16 with std::string and std::string_view
+  EXPECT_EQ(utfx::utf8_to_utf16(utf8_str), utf16_str);
+  EXPECT_EQ(utfx::utf8_to_utf16(utf8_sv), utf16_str);
+
+  // utf8_to_utf16<char16_t> with std::string and std::string_view
+  auto from_str = utfx::utf8_to_utf16<char16_t>(utf8_str);
+  auto from_sv = utfx::utf8_to_utf16<char16_t>(utf8_sv);
+  EXPECT_EQ(from_str, from_sv);
+
+  // utf16_to_utf8 with std::wstring and std::wstring_view
+  EXPECT_EQ(utfx::utf16_to_utf8(utf16_str), utf8_str);
+  EXPECT_EQ(utfx::utf16_to_utf8(utf16_sv), utf8_str);
+
+  // utf16_to_utf8 with std::u16string and std::u16string_view
+  std::u16string u16str = u"Hello UTF 测试 🔥!";
+  std::u16string_view u16sv = u16str;
+  EXPECT_EQ(utfx::utf16_to_utf8(u16str), utf8_str);
+  EXPECT_EQ(utfx::utf16_to_utf8(u16sv), utf8_str);
+#else
+  // Non-Windows: char16_t overloads
+  std::u16string utf16_str = u"Hello UTF 测试 🔥!";
+  std::u16string_view utf16_sv = utf16_str;
+
+  // utf8_to_utf16 with std::string and std::string_view
+  EXPECT_EQ(utfx::utf8_to_utf16(utf8_str), utf16_str);
+  EXPECT_EQ(utfx::utf8_to_utf16(utf8_sv), utf16_str);
+
+  // utf16_to_utf8 with std::u16string and std::u16string_view
+  EXPECT_EQ(utfx::utf16_to_utf8(utf16_str), utf8_str);
+  EXPECT_EQ(utfx::utf16_to_utf8(utf16_sv), utf8_str);
+#endif
+
+  // Round-trip via string_view
+  EXPECT_EQ(utfx::utf16_to_utf8(utfx::utf8_to_utf16(utf8_sv)), utf8_str);
 }
